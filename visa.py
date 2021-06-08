@@ -8,32 +8,40 @@ from datetime import date
 # date of today
 today = date.today()
 
-img = cv2.imread('image2.jpg')
+# loading the image
+img = cv2.imread('image1.jpg')
 
+# doing some preprocessing to the image to improve the text dection.
 gray = get_grayscale(img)
 thresh = thresholding(gray)
 opening = opening(gray)
 canny = canny(gray)
 
-# Adding custom options
-# custom_config = r'--oem 3 --psm 6'
-output = pytesseract.image_to_string(thresh, config='config')
-lst = output.split()
+# ocr
+data = pytesseract.image_to_data(thresh,output_type=Output.DICT, config='config') # to get the confidence score 
+n_words = len(data['text'])
 
-# detecing all dates in the visa
+# detecing the confidence score of the expiration date
+data_pattern = "^([1-9]|1[0-9]|2[0-9]|3[0-1])[A-Z][A-Z][A-Z][0-9][0-9][0-9][0-9]$" #get any dates like: 24AUG2028
+list_of_dates_scores = []
 list_of_dates = []
-for elemnt in lst:
-	data_pattern = "^([1-9]|1[0-9]|2[A-Z]|2[0-9]|3[0-1])[A-Z][A-Z][A-Z][0-9][0-9][0-9][0-9]$"
+for i in range(n_words):
+	is_date = re.search(data_pattern,data['text'][i])
+	if(is_date):
+		list_of_dates.append(data['text'][i])
+		list_of_dates_scores.append(data['conf'][i])
 
-	is_date = re.search(data_pattern,elemnt)
-	if (is_date):
-		list_of_dates.append(elemnt)
-
-# extracting the year of expiration date 
+# detecting which date is the expiration date and extracting its year 
 years= []
 for date in list_of_dates:
 	years.append(int(date[5:]))
-expiration_date_year_index = years.index(max(years)) #the biggest date has to be the expiration date (not issue date or birthdate)
+expiration_date_year_index = years.index(max(years))
+
+# setting the thershold of the confidence score to 65 but we can make it higher if we want.
+if (list_of_dates_scores[expiration_date_year_index] > 65): 
+	confidence = 'with high confidence'
+else:
+	confidence = "not sure"
 
 # extracting the month of the expiration date 
 month_dic = {"JAN":"01",
@@ -48,7 +56,6 @@ month_dic = {"JAN":"01",
 			"OCT":"10",
 			"NOV":"11",
 			"DEC":"12" }
-
 months= []
 for date in list_of_dates:
 	months.append(date[2:5])
@@ -68,18 +75,18 @@ print("Expiration date:",years[expiration_date_year_index],"-",month_dic[months[
 print("Today's date:",today)
 
 if (years[expiration_date_year_index] > int(year_of_today)):
-	print("VALID VISA")
+	print("VALID VISA", confidence)
 elif (years[expiration_date_year_index] < int(year_of_today)):
-	print("INVALID VISA")
+	print("INVALID VISA", confidence)
 elif( years[expiration_date_year_index] == int(year_of_today)):
 	if (month_dic[months[expiration_date_year_index]] > int(month_of_today)):
-		print("VALID VISA")
+		print("VALID VISA", confidence)
 	elif (month_dic[months[expiration_date_year_index]] < int(month_of_today)):
-		print("INVALID VISA")
+		print("INVALID VISA", confidence)
 	elif (month_dic[months[expiration_date_year_index]] == int(month_of_today)):
 		if (days[expiration_date_year_index] > int(day_of_today)):
-			print("VALID VISA")
+			print("VALID VISA", confidence)
 		elif (days[expiration_date_year_index] < int(day_of_today)):
-			print("INVALID VISA")
+			print("INVALID VISA", confidence)
 		elif (days[expiration_date_year_index]== int(day_of_today)):
-			print("YOUR VISA WILL EXPIRE TODAY")
+			print("YOUR VISA WILL EXPIRE TODAY", confidence)
